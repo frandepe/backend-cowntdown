@@ -6,7 +6,7 @@ user = APIRouter()
 # Fast instalo la libreria: pip install cryptographys
 # Lo que hace es encriptar la contraseñaaa
 
-@user.get("/all-users") # definimos endpoint donde se visualizan los datosaa
+@user.get("/all-users") # definimos endpoint donde se visualizan los datosaas
 def get_users(): # asignamos este nombre a la funcion
     return conn.execute(users.select()).fetchall() # conectamos a la base de datos, consulta con select elegimos la tabla users y con fetchall traemos todos los datos
 

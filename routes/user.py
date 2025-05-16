@@ -4,7 +4,7 @@ from models.user import users
 
 user = APIRouter()
 # Fast instalo la libreria: pip install cryptography
-# Lo que hace es encriptar la contraseña
+# Lo que hace es encriptar la contraseñaa
 
 @user.get("/all-users") # definimos endpoint donde se visualizan los datos
 def get_users(): # asignamos este nombre a la funcion

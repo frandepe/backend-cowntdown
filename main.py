@@ -7,6 +7,8 @@ from models.user import users
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
+from routes.yolo import router as yolo_router
+
 
 SECRET_KEY = "secret_key_segura"
 ALGORITHM = "HS256"
@@ -28,11 +30,5 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
 
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/YOLOv12/{id}")
-def read_root():
-    # YOLOv12 deberia chekear el video
-    return {"Hello": "World"}
-
-# @app.get("/")
-# def read_root(current_user: dict = Depends(get_current_user)):
-#     return {"Hello": "World"}
+#Yolo
+app.include_router(yolo_router, prefix="/yolo", tags=["Yolo"]) 

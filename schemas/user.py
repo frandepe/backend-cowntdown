@@ -3,6 +3,6 @@ from pydantic import BaseModel
 
 class User(BaseModel):
     id: Optional[int] = None
-    name: str
+    username: str
     email: str
     password: str

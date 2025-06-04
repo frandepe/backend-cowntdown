@@ -1,32 +1,33 @@
 # C:\Users\jeroa\Desktop\JeroAlderete\3 - CowntDown Project\backend-cowntdown-main\routes\user.py
 
 from fastapi import APIRouter, Depends, Response
-from config.db import conn
-from models.user import users
 from schemas.user import User
 import bcrypt
 from libs.utils import get_current_user
 from libs.utils import create_access_token
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import HTTPException, status, Depends
+from config.db import supabase
 
 user = APIRouter()
 
-
 @user.post("/create_user")
-def create_user(user: User):
-    try:
-        hashed_password = bcrypt.hashpw(
-            user.password.encode('utf-8'), bcrypt.gensalt()).decode()
-        new_user = {"name": user.name, "email": user.email,
-                    "password": hashed_password}
-        result = conn.execute(users.insert().values(new_user))
-        inserted_id = result.inserted_primary_key[0]
-        user_created = conn.execute(users.select().where(
-            users.c.id == inserted_id)).mappings().fetchone()
-        return user_created
-    except Exception as e:
-        return {"error": str(e)}
+def create_user(user_data: User):  # Usa tu esquema Pydantic User si tienes
+    # Primero validar que email no exista
+    existing = supabase.table('users').select('*').eq('email', user_data.email).execute()
+    if existing.data and len(existing.data) > 0:
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
+
+    hashed_password = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode()
+    new_user = {
+        "username": user_data.username,
+        "email": user_data.email,
+        "password": hashed_password
+    }
+    result = supabase.table('users').insert(new_user).execute()
+    if not result.data or len(result.data) == 0:
+        raise HTTPException(status_code=500, detail="Error al insertar el usuario")
+    return result.data[0]  # Retornar el usuario insertado
 
 
 @user.get("/private")
@@ -34,60 +35,57 @@ def read_users_me(current_user: dict = Depends(get_current_user)):
     return {"user": current_user}
 
 
-# @user.post("/login")
-
-# # OAuth2PasswordRequestForm  extraer y valida los datos enviados en el formulario
-# def login(form_data: OAuth2PasswordRequestForm = Depends()): # Depends() indica que FastAPI debe "inyectar" esos datos usando la clase OAuth2PasswordRequestForm.
-#     # Buscar usuario en la base de datos por email (form_data.username es el email)
-#     user = conn.execute(users.select().where(users.c.email == form_data.username)).mappings().fetchone()
-#     # validacion si no matchea
-#     if not user:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos") # httpexception lanzar errores HTTP desde los endpoints.
-
-#     # Verificar match contraseña
-#     if not bcrypt.checkpw(form_data.password.encode('utf-8'), user["password"].encode('utf-8')):
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos") #
-
-#     # Crear token JWT access token (sucede desde nuestra función creada)
-#     access_token = create_access_token(data={"sub": user["email"]})
-
-#     return {"access_token": access_token, "token_type": "bearer"}
-
 @user.post("/login")
 def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends()):
-    # Buscar usuario en la base de datos por email
-    user = conn.execute(users.select().where(
-        users.c.email == form_data.username)).mappings().fetchone()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Email o contraseña incorrectos")
+    try:
+        result = supabase.table('users').select('*').eq('email', form_data.username).execute()
+        # print("Supabase query result raw:", result)
+        # print("Result dir:", dir(result))
 
-    if not bcrypt.checkpw(form_data.password.encode('utf-8'), user["password"].encode('utf-8')):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Email o contraseña incorrectos")
+        # Verificar datos
+        if not hasattr(result, "data") or result.data is None or len(result.data) == 0:
+            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
 
-    access_token = create_access_token(data={"sub": user["email"]})
+        user = result.data[0]
 
-    # Seteamos la cookie HttpOnly para el token
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=False,  # Cambiar a True si usas HTTPS en producción
-        samesite="lax",  # o "strict" según necesites
-        max_age=60*60*24  # 1 día en segundos
-    )
+        if "password" not in user:
+            raise HTTPException(status_code=500, detail="Usuario sin contraseña en la base")
 
-    return {"message": "Login exitoso"}
+        password_matches = bcrypt.checkpw(
+            form_data.password.encode('utf-8'),
+            user["password"].encode('utf-8')
+        )
+        if not password_matches:
+            raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
 
+        access_token = create_access_token(data={"sub": user["email"]})
+
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=60*60*24
+        )
+
+        return {"message": "Login exitoso"}
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        # import traceback
+        # print("Traceback error completo:")
+        # traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error inesperado: {str(e)}")
 
 @user.post("/logout")
 def logout(response: Response):
     response.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=True,       # Usá True en producción
-        samesite="strict",
+        secure=False,
+        samesite="lax",
         path="/"
     )
     return {"message": "Logout exitoso"}

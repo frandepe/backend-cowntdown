@@ -1,4 +1,4 @@
-#C:\Users\jeroa\Desktop\JeroAlderete\3 - CowntDown Project\backend-cowntdown-main\config\db.py
+#C:\Users\jeroa\Desktop\JeroAlderete\3 - CowntDown Project\backend-cowntdown-main\config\db.py s
 
 from supabase import create_client, Client
 import os
